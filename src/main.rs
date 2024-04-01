@@ -15,6 +15,12 @@ fn main() {
                 
                 if path == "/" {
                     stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
+                } else if path.starts_with("/echo/") {
+                    let status = "HTTP/1.1 200 OK";
+                    let body = path.replace("/echo/", "");
+                    let headers = format!("Content-Type: text/plain\r\nContent-Length: {}", body.len());
+
+                    stream.write_all(format!("{}\r\n{}\r\n\r\n{}", status, headers, body).as_bytes()).unwrap();
                 } else {
                     stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").unwrap();
                 }
