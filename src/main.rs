@@ -4,8 +4,7 @@ use std::env::args;
 use std::{fs, thread};
 use std::{io::Write, net::TcpListener};
 
-use http::response::{self, HttpResponseBuilder};
-use itertools::Itertools;
+use http::response::HttpResponseBuilder;
 
 use crate::http::request::HttpRequest;
 use crate::http::response::HttpResponse;
