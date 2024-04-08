@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::{BufRead, Read},
+    io::{BufRead, BufReader, Read},
     net::TcpStream,
 };
 
@@ -57,38 +57,42 @@ impl HttpRequest {
         }
     }
 
-    pub fn from_stream(mut stream: &TcpStream) -> Self {
-        let mut buffer = [0; 1024];
+    pub fn from_stream(stream: &TcpStream) -> Self {
+        let mut reader = BufReader::new(stream);
         let mut builder = HttpRequestBuilder::new();
-        let mut headers = true;
 
-        stream.read(&mut buffer).unwrap();
-        for (nr, result) in buffer.lines().enumerate() {
-            match result {
-                Ok(line) => {
-                    if nr == 0 {
-                        let mut first_line = line.split(' ');
-                        let method = HttpMethod::from_string(first_line.next().unwrap()).unwrap();
-                        let path = first_line.next().unwrap().to_owned();
-                        let version = first_line.next().unwrap().to_owned();
-                        builder.with_method(method);
-                        builder.with_path(path);
-                        builder.with_version(version);
-                    } else if headers {
-                        if line.is_empty() {
-                            headers = false;
-                        } else {
-                            let mut key_value = line.split(": ");
-                            let key = key_value.next().unwrap().to_owned();
-                            let value = key_value.next().unwrap().to_owned();
-                            builder.with_header(key, value);
-                        }
-                    } else {
-                        builder.with_body_line(line);
-                    }
-                }
-                Err(_) => {}
+        let mut first_line = String::new();
+        reader.read_line(&mut first_line).unwrap();
+
+        let mut first_line = first_line.split(' ');
+        let method = HttpMethod::from_string(first_line.next().unwrap()).unwrap();
+        let path = first_line.next().unwrap().to_owned();
+        let version = first_line.next().unwrap().to_owned();
+        builder.with_method(method);
+        builder.with_path(path);
+        builder.with_version(version);
+
+        let mut content_length = 0;
+        loop {
+            let mut header = String::new();
+            reader.read_line(&mut header).unwrap();
+
+            if header == "\r\n" {
+                break;
             }
+
+            let (key, value) = header.split_once(':').unwrap();
+            builder.with_header(key.trim().to_owned(), value.trim().to_owned());
+            if key.trim().to_lowercase() == "content-length" {
+                content_length = value.trim().parse().unwrap();
+            }
+        }
+
+        if content_length > 0 {
+            let mut body = vec![0; content_length];
+            reader.read_exact(&mut body).unwrap();
+
+            builder.with_body(String::from_utf8_lossy(&body).to_string());
         }
 
         builder.build()
@@ -134,13 +138,8 @@ impl HttpRequestBuilder {
         self
     }
 
-    fn with_body_line(&mut self, body: String) -> &Self {
-        if let Some(old_body) = self.body.as_mut() {
-            old_body.push_str(&String::from("\n\r\n\r"));
-            old_body.push_str(&body);
-        } else {
-            self.body = Some(body);
-        };
+    fn with_body(&mut self, body: String) -> &Self {
+        self.body = Some(body);
         self
     }
 
