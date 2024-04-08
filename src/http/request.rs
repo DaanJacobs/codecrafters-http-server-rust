@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::{self, BufRead},
+    io::{BufRead, Read},
     net::TcpStream,
 };
 
@@ -58,32 +58,33 @@ impl HttpRequest {
     }
 
     pub fn from_stream(mut stream: &TcpStream) -> Self {
-        let buffer = io::BufReader::new(&mut stream);
+        let mut buffer = [0; 2024];
         let mut builder = HttpRequestBuilder::new();
         let mut headers = true;
+
+        stream.read(&mut buffer).unwrap();
         for (nr, result) in buffer.lines().enumerate() {
             match result {
                 Ok(line) => {
-                    if nr == 1 {
+                    if nr == 0 {
                         let mut first_line = line.split(' ');
-
-                        let method = HttpMethod::from_string(first_line.nth(0).unwrap()).unwrap();
-                        let path = first_line.nth(1).unwrap().to_owned();
-                        let version = first_line.nth(2).unwrap().to_owned();
+                        let method = HttpMethod::from_string(first_line.next().unwrap()).unwrap();
+                        let path = first_line.next().unwrap().to_owned();
+                        let version = first_line.next().unwrap().to_owned();
                         builder.with_method(method);
                         builder.with_path(path);
                         builder.with_version(version);
                     } else if headers {
-                        let mut key_value = line.split(' ');
-                        let key = key_value.nth(0).unwrap().to_owned();
-                        let value = key_value.nth(1).unwrap().to_owned();
-                        builder.with_header(key, value);
-                    } else {
                         if line.is_empty() {
                             headers = false;
                         } else {
-                            builder.with_body_line(line);
+                            let mut key_value = line.split(": ");
+                            let key = key_value.next().unwrap().to_owned();
+                            let value = key_value.next().unwrap().to_owned();
+                            builder.with_header(key, value);
                         }
+                    } else {
+                        builder.with_body_line(line);
                     }
                 }
                 Err(_) => {}
