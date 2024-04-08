@@ -1,9 +1,11 @@
 pub mod http;
 
-use std::thread;
+use std::env::args;
+use std::{fs, thread};
 use std::{io::Write, net::TcpListener};
 
-use http::response::HttpResponseBuilder;
+use http::response::{self, HttpResponseBuilder};
+use itertools::Itertools;
 
 use crate::http::request::HttpRequest;
 use crate::http::response::HttpResponse;
@@ -35,6 +37,8 @@ fn handle_client_request(stream: std::net::TcpStream) {
         return_user_agent(stream, request)
     } else if path.starts_with("/echo/") {
         return_echo(stream, request)
+    } else if path.starts_with("/files/") {
+        return_file(stream, request)
     } else {
         return_not_found(stream)
     }
@@ -61,6 +65,29 @@ fn return_echo(mut stream: std::net::TcpStream, request: HttpRequest) {
         .with_body(body)
         .build();
     stream.write_all(&response.as_bytes()).unwrap();
+}
+
+fn return_file(mut stream: std::net::TcpStream, request: HttpRequest) {
+    let args: Vec<String> = args().collect();
+    let file = request.path.replace("/files/", "");
+    let file_path = match args.get(2) {
+        Some(dir) => format!("{}/{}", dir, file),
+        None => file,
+    };
+
+    match fs::read_to_string(file_path) {
+        Ok(content) => {
+            let response: HttpResponse = HttpResponseBuilder::new()
+                .with_header(
+                    String::from("Content-Type"),
+                    String::from("application/octet-stream"),
+                )
+                .with_body(content)
+                .build();
+            stream.write_all(&response.as_bytes()).unwrap();
+        }
+        Err(_) => return_not_found(stream),
+    };
 }
 
 fn return_user_agent(mut stream: std::net::TcpStream, request: HttpRequest) {
