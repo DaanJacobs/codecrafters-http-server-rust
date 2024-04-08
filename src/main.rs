@@ -28,6 +28,41 @@ fn main() {
 
 fn handle_client_request(stream: std::net::TcpStream) {
     let request: HttpRequest = HttpRequest::from_stream(&stream);
+    match request.method {
+        http::request::HttpMethod::Get => handle_get_request(request, stream),
+        http::request::HttpMethod::Post => handle_post_request(request, stream),
+        _ => return_not_found(stream),
+    }
+}
+
+fn handle_post_request(request: HttpRequest, stream: std::net::TcpStream) {
+    let path = &request.path;
+    if path.starts_with("/files/") {
+        create_resource(stream, request)
+    } else {
+        return_not_found(stream)
+    }
+}
+
+fn create_resource(mut stream: std::net::TcpStream, request: HttpRequest) {
+    let args: Vec<String> = args().collect();
+    let file = request.path.replace("/files/", "");
+    let file_path = match args.get(2) {
+        Some(dir) => format!("{}/{}", dir, file),
+        None => file,
+    };
+    match fs::write(file_path, request.body.unwrap()) {
+        Ok(_) => {
+            let response: HttpResponse = HttpResponseBuilder::new()
+                .with_status(201, String::from("Resource created"))
+                .build();
+            stream.write_all(&response.as_bytes()).unwrap()
+        }
+        Err(_) => return_not_found(stream),
+    }
+}
+
+fn handle_get_request(request: HttpRequest, stream: std::net::TcpStream) {
     let path = &request.path;
 
     if path == "/" {
