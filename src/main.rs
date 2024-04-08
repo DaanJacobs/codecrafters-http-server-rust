@@ -54,7 +54,7 @@ fn create_resource(mut stream: std::net::TcpStream, request: HttpRequest) {
     match fs::write(file_path, request.body.unwrap()) {
         Ok(_) => {
             let response: HttpResponse = HttpResponseBuilder::new()
-                .with_status(201, String::from("Resource created"))
+                .with_status(201, String::from("Created"))
                 .build();
             stream.write_all(&response.as_bytes()).unwrap()
         }

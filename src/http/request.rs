@@ -58,7 +58,7 @@ impl HttpRequest {
     }
 
     pub fn from_stream(mut stream: &TcpStream) -> Self {
-        let mut buffer = [0; 2024];
+        let mut buffer = [0; 1024];
         let mut builder = HttpRequestBuilder::new();
         let mut headers = true;
 
