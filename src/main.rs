@@ -1,5 +1,6 @@
 pub mod http;
 
+use std::thread;
 use std::{io::Write, net::TcpListener};
 
 use http::response::HttpResponseBuilder;
@@ -13,23 +14,29 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                let request: HttpRequest = HttpRequest::from_stream(&stream);
-                let path = &request.path;
-
-                if path == "/" {
-                    return_ok(stream)
-                } else if path == "/user-agent" {
-                    return_user_agent(stream, request)
-                } else if path.starts_with("/echo/") {
-                    return_echo(stream, request)
-                } else {
-                    return_not_found(stream)
-                }
+                thread::spawn(move || {
+                    handle_client_request(stream);
+                });
             }
             Err(e) => {
                 println!("error: {}", e);
             }
         }
+    }
+}
+
+fn handle_client_request(stream: std::net::TcpStream) {
+    let request: HttpRequest = HttpRequest::from_stream(&stream);
+    let path = &request.path;
+
+    if path == "/" {
+        return_ok(stream)
+    } else if path == "/user-agent" {
+        return_user_agent(stream, request)
+    } else if path.starts_with("/echo/") {
+        return_echo(stream, request)
+    } else {
+        return_not_found(stream)
     }
 }
 
